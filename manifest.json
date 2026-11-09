@@ -1,0 +1,11 @@
+{
+    "display_name": "小翻译",
+    "loading_order": 15,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "catloaf",
+    "version": "1.0.0",
+    "homePage": "https://github.com/Toast-Cat-OwO/xiaofanyi"
+}
