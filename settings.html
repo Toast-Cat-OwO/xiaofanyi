@@ -1,0 +1,60 @@
+<div class="st-trans-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>小翻译设置</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <div class="st-trans-setting-group">
+                <label class="checkbox_label">
+                    <input type="checkbox" id="st_trans_enable_ball" />
+                    <span>启用侧边悬浮球</span>
+                </label>
+                <label class="checkbox_label">
+                    <input type="checkbox" id="st_trans_enable_selection" />
+                    <span>启用正文划词翻译气泡</span>
+                </label>
+            </div>
+
+            <hr class="sysHR" />
+
+            <div class="st-trans-setting-item">
+                <label for="st_trans_engine">翻译引擎</label>
+                <select id="st_trans_engine" class="text_pole">
+                    <option value="google">免费接口 (Google Web)</option>
+                    <option value="custom_ai">自定义 AI 模型 (OpenAI 兼容)</option>
+                </select>
+            </div>
+
+            <div class="st-trans-setting-item">
+                <label for="st_trans_bilingual_format">双语追加格式</label>
+                <input type="text" id="st_trans_bilingual_format" class="text_pole" placeholder="{{target}}（{{source}}）" />
+                <small class="st-trans-hint">可用变量：{{target}} 代表译文，{{source}} 代表原文</small>
+            </div>
+
+            <div id="st_trans_ai_config" style="display: none;">
+                <hr class="sysHR" />
+                <div class="st-trans-setting-item">
+                    <label for="st_trans_api_url">API Endpoint (接口地址)</label>
+                    <input type="text" id="st_trans_api_url" class="text_pole" placeholder="https://api.openai.com/v1/chat/completions" />
+                </div>
+                <div class="st-trans-setting-item">
+                    <label for="st_trans_api_key">API Key</label>
+                    <input type="password" id="st_trans_api_key" class="text_pole" placeholder="sk-..." />
+                </div>
+                <div class="st-trans-setting-item">
+                    <label for="st_trans_model">模型名称 (Model)</label>
+                    <input type="text" id="st_trans_model" class="text_pole" placeholder="gpt-4o-mini 或 deepseek-chat" />
+                </div>
+                <div class="st-trans-setting-item">
+                    <div class="st-trans-label-row">
+                        <label for="st_trans_prompt">自定义翻译 Prompt</label>
+                        <span id="st_trans_reset_prompt" class="st-trans-link-btn">恢复默认</span>
+                    </div>
+                    <textarea id="st_trans_prompt" class="text_pole" rows="5"></textarea>
+                    <small class="st-trans-hint">可用变量：{{source_lang}} (源语言), {{target_lang}} (目标语言), {{tone}} (所选语气要求)</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
