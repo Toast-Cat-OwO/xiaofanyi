@@ -208,6 +208,40 @@
     min-height: 52px;
     line-height: 1.45;
 }
+
+/* 输入框外层容器与右上角清空按钮 */
+.xfy-textarea-wrap {
+    position: relative;
+    width: 100%;
+    display: flex;
+}
+.xfy-textarea-wrap .xfy-textarea {
+    padding-right: 26px; /* 给右上角 × 留出空间，防止文字重叠 */
+}
+.xfy-clear-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(128, 128, 128, 0.2);
+    color: var(--SmartThemeBodyColor, #eee);
+    font-size: 12px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.15s, background-color 0.15s;
+}
+.xfy-clear-btn:hover {
+    opacity: 1;
+    background: rgba(128, 128, 128, 0.35);
+}
+
 .xfy-swap-btn {
     background: var(--SmartThemeChatTintColor, rgba(0, 0, 0, 0.2));
     border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.15));
