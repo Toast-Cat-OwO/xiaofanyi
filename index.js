@@ -31,7 +31,7 @@ const DEFAULT_PRESET_ID = "default_preset";
 const DEFAULT_SETTINGS = {
     enable_ball: true,
     enable_selection: true,
-    engine: "google", // "google" 或 "custom_ai"
+    engine: "bing",
     bilingual_format: "{{target}}（{{source}}）",
     prompt: DEFAULT_PROMPT,
     source_lang: "zh-CN",
@@ -120,6 +120,56 @@ async function fetchModelList(apiUrl, apiKey) {
     return list;
 }
 
+// 微软必应与国内多通道直连实现
+async function bingDirectTranslate(text, sourceLang, targetLang) {
+    const mapLang = (l, isSrc) => {
+        if (l === "auto") return isSrc ? "" : "zh-Hans";
+        if (l === "zh-CN") return "zh-Hans";
+        if (l === "zh-TW") return "zh-Hant";
+        return l;
+    };
+
+    // 优先使用微软 Edge 神经网络接口
+    try {
+        const tokenResp = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://edge.microsoft.com/translate/auth"));
+        if (tokenResp.ok) {
+            const token = await tokenResp.text();
+            const from = mapLang(sourceLang, true);
+            const to = mapLang(targetLang, false);
+            const msUrl = `https://api-edge.cognitive.microsofttranslator.com/translate?from=${from}&to=${to}&api-version=3.0`;
+            const transResp = await fetch(msUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token.trim()}`
+                },
+                body: JSON.stringify([{ Text: text }])
+            });
+            if (transResp.ok) {
+                const data = await transResp.json();
+                const res = data?.[0]?.translations?.[0]?.text;
+                if (res) return res;
+            }
+        }
+    } catch (e) {
+        // 自动切换备用直连通道
+    }
+
+    // 备用直连通道 (MyMemory 多语种直连)
+    const mmSource = sourceLang === "auto" ? "autodetect" : sourceLang;
+    const mmUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent(mmSource)}|${encodeURIComponent(targetLang)}`;
+    const mmResp = await fetch(mmUrl);
+    if (!mmResp.ok) {
+        throw new Error(`翻译请求失败 (${mmResp.status})`);
+    }
+    const mmData = await mmResp.json();
+    const translated = mmData?.responseData?.translatedText;
+    if (!translated) {
+        throw new Error("未返回有效译文，请稍后重试或切换翻译源");
+    }
+    return translated;
+}
+
 // 翻译核心逻辑
 async function translateText(text, sourceLang, targetLang, requirement = "") {
     const settings = getSettings();
@@ -169,8 +219,9 @@ async function translateText(text, sourceLang, targetLang, requirement = "") {
         const content = data.choices?.[0]?.message?.content?.trim();
         if (!content) throw new Error("AI 返回内容为空");
         return content;
+    } else if (settings.engine === "bing") {
+        return await bingDirectTranslate(text, sourceLang, targetLang);
     } else {
-        // Google 免费翻译
         const sl = sourceLang === "auto" ? "auto" : sourceLang;
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(text)}`;
         const response = await fetch(url);
@@ -211,16 +262,19 @@ function syncPanelEngineUI() {
     const reqRow = document.getElementById("xfy-req-row");
     if (!quickSelect || !reqRow) return;
 
-    quickSelect.innerHTML = `<option value="google">Google 翻译</option>`;
+    quickSelect.innerHTML = `
+        <option value="bing">微软必应</option>
+        <option value="google">Google 翻译</option>
+    `;
     settings.presets.forEach(p => {
         const opt = document.createElement("option");
         opt.value = `preset:${p.id}`;
-        opt.textContent = `AI: ${p.name}`;
+        opt.textContent = p.name;
         quickSelect.appendChild(opt);
     });
 
-    if (settings.engine === "google") {
-        quickSelect.value = "google";
+    if (settings.engine === "bing" || settings.engine === "google") {
+        quickSelect.value = settings.engine;
         reqRow.style.display = "none";
     } else {
         quickSelect.value = `preset:${settings.active_preset_id}`;
@@ -244,7 +298,7 @@ function buildFloatingUI() {
         <div class="xfy-panel-header" id="xfy-panel-drag-handle">
             <span class="xfy-panel-title">小翻译</span>
             <div class="xfy-header-controls">
-                <select class="xfy-QuickEngine-select" id="xfy-quick-engine" title="快速切换翻译源/预设"></select>
+                <select class="xfy-QuickEngine-select" id="xfy-quick-engine" title="切换翻译源"></select>
                 <button class="xfy-icon-btn" id="xfy-panel-min" title="折叠/展开">—</button>
                 <button class="xfy-icon-btn" id="xfy-panel-close" title="关闭">×</button>
             </div>
@@ -325,15 +379,14 @@ function buildFloatingUI() {
     // 面板顶部快速切换引擎或预设
     quickEngine.addEventListener("change", () => {
         const val = quickEngine.value;
-        if (val === "google") {
-            settings.engine = "google";
+        if (val === "bing" || val === "google") {
+            settings.engine = val;
         } else if (val.startsWith("preset:")) {
             settings.engine = "custom_ai";
             settings.active_preset_id = val.replace("preset:", "");
         }
         saveSettingsDebounced();
         syncPanelEngineUI();
-        // 同步右侧设置栏状态
         $("#xfy_engine").val(settings.engine);
         $("#xfy_ai_config").toggle(settings.engine === "custom_ai");
         $("#xfy_preset_select").val(settings.active_preset_id).trigger("change");
@@ -364,12 +417,11 @@ function buildFloatingUI() {
         panel.style.display = "none";
     });
 
-    // 翻译按钮逻辑
+    // 翻译与清空按钮逻辑
     const btnTranslate = document.getElementById("xfy-do-translate");
     const inputArea = document.getElementById("xfy-input-text");
     const outputArea = document.getElementById("xfy-output-text");
 
-    // 一键清空原文与译文，并重新聚焦输入框
     document.getElementById("xfy-clear-input").addEventListener("click", () => {
         inputArea.value = "";
         outputArea.value = "";
@@ -470,7 +522,6 @@ function initPanelDragAndViewport(panel) {
         saveSettingsDebounced();
     });
 
-    // 监听手机端输入法弹出（visualViewport 变化），自动上推面板
     if (window.visualViewport) {
         const adjustForKeyboard = () => {
             if (panel.style.display === "none") return;
@@ -596,7 +647,6 @@ function buildSelectionPopover() {
     let selectedText = "";
     let selectionTimer = null;
 
-    // 统一检测选区函数
     function checkSelection() {
         const settings = getSettings();
         if (!settings.enable_selection) return;
@@ -610,13 +660,11 @@ function buildSelectionPopover() {
         const text = selection.toString().trim();
         const chatContainer = document.getElementById("chat");
 
-        // 确保选中的文字在聊天正文区域内
         if (text && chatContainer && chatContainer.contains(selection.anchorNode)) {
             selectedText = text;
             const range = selection.getRangeAt(0);
             const rect = range.getBoundingClientRect();
 
-            // 放在选中文字的右下方，避开手机系统自带的顶部“复制/全选”菜单
             const left = Math.max(10, Math.min(rect.right + window.scrollX - 28, window.innerWidth - 70));
             const top = rect.bottom + window.scrollY + 8;
 
@@ -628,19 +676,16 @@ function buildSelectionPopover() {
         }
     }
 
-    // 1. 监听选区变化（核心：完美支持手机长按选词与拖动选区滑块）
     document.addEventListener("selectionchange", () => {
         clearTimeout(selectionTimer);
         selectionTimer = setTimeout(checkSelection, 200);
     });
 
-    // 2. 点击页面空白处时关闭翻译气泡
     document.addEventListener("pointerdown", (e) => {
         if (trigger.contains(e.target) || popover.contains(e.target)) return;
         popover.style.display = "none";
     });
 
-    // 3. 点击“翻译”胶囊按钮（使用 pointerup 兼顾手机秒点与电脑点击）
     trigger.addEventListener("pointerup", async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -671,6 +716,7 @@ function buildSelectionPopover() {
         notify("success", "已复制译文");
     });
 }
+
 // 初始化设置界面与预设管理
 async function initSettingsUI() {
     const settingsHtml = await $.get(`scripts/extensions/third-party/${MODULE_NAME}/settings.html`);
@@ -719,7 +765,6 @@ async function initSettingsUI() {
 
     renderPresetOptions();
 
-    // 基础开关与引擎切换
     elBall.on("change", function () {
         settings.enable_ball = $(this).is(":checked");
         $("#xfy-ball").toggle(settings.enable_ball);
@@ -743,7 +788,6 @@ async function initSettingsUI() {
         saveSettingsDebounced();
     });
 
-    // 切换预设
     elPresetSelect.on("change", function () {
         settings.active_preset_id = $(this).val();
         loadActivePresetToInputs();
@@ -751,12 +795,11 @@ async function initSettingsUI() {
         syncPanelEngineUI();
     });
 
-    // 新建预设
     $("#xfy_preset_new").on("click", function () {
         const newId = "preset_" + Date.now();
         settings.presets.push({
             id: newId,
-            name: `新预设 ${settings.presets.length + 1}`,
+            name: `预设 ${settings.presets.length + 1}`,
             api_url: "https://api.openai.com/v1",
             api_key: "",
             model: ""
@@ -767,7 +810,6 @@ async function initSettingsUI() {
         notify("info", "已创建新预设，请填写配置后点击保存");
     });
 
-    // 删除预设
     $("#xfy_preset_delete").on("click", function () {
         if (settings.presets.length <= 1) {
             return notify("warning", "至少需要保留一个预设");
@@ -779,7 +821,6 @@ async function initSettingsUI() {
         notify("success", "预设已删除");
     });
 
-    // 保存当前预设
     $("#xfy_save_preset").on("click", function () {
         const preset = getActivePreset();
         if (!preset) return;
@@ -794,7 +835,6 @@ async function initSettingsUI() {
         notify("success", `预设「${preset.name}」已保存`);
     });
 
-    // 拉取模型列表
     $("#xfy_fetch_models").on("click", async function () {
         const btn = $(this);
         const url = elUrl.val().trim();
@@ -806,7 +846,6 @@ async function initSettingsUI() {
             models.forEach(m => {
                 elModelSelect.append($("<option></option>").val(m).text(m));
             });
-            // 如果原先填的模型在列表里，默认选中它
             if (models.includes(elModelInput.val().trim())) {
                 elModelSelect.val(elModelInput.val().trim());
             } else {
@@ -826,7 +865,6 @@ async function initSettingsUI() {
         elModelInput.val($(this).val());
     });
 
-    // 手动输入与下拉选择切换
     $("#xfy_toggle_model_input").on("click", function () {
         if (elModelSelect.is(":visible")) {
             elModelSelect.hide();
@@ -840,7 +878,6 @@ async function initSettingsUI() {
         }
     });
 
-    // Prompt 编辑与重置
     elPrompt.on("input", function () {
         settings.prompt = $(this).val();
         saveSettingsDebounced();
