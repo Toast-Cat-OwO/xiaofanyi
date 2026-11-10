@@ -249,7 +249,10 @@ function buildFloatingUI() {
             <div class="xfy-controls-row" id="xfy-req-row" style="display: none;">
                 <input type="text" class="xfy-input" id="xfy-req-input" placeholder="翻译要求（例：使用亲密平语 / 敬语）" />
             </div>
-            <textarea class="xfy-textarea" id="xfy-input-text" rows="2" placeholder="输入要翻译的内容..."></textarea>
+            <div class="xfy-textarea-wrap">
+                <textarea class="xfy-textarea" id="xfy-input-text" rows="2" placeholder="输入要翻译的内容..."></textarea>
+                <button type="button" class="xfy-clear-btn" id="xfy-clear-input" title="清空内容">×</button>
+            </div>
             <div class="xfy-action-bar">
                 <button class="xfy-btn xfy-btn-primary" id="xfy-do-translate">翻译</button>
             </div>
@@ -325,6 +328,13 @@ function buildFloatingUI() {
     const btnTranslate = document.getElementById("xfy-do-translate");
     const inputArea = document.getElementById("xfy-input-text");
     const outputArea = document.getElementById("xfy-output-text");
+
+    // 一键清空原文与译文，并重新聚焦输入框
+    document.getElementById("xfy-clear-input").addEventListener("click", () => {
+        inputArea.value = "";
+        outputArea.value = "";
+        inputArea.focus();
+    });
 
     btnTranslate.addEventListener("click", async () => {
         const srcText = inputArea.value.trim();
