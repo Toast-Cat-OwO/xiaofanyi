@@ -113,7 +113,7 @@
 #xfy-panel.xfy-minimized {
     height: auto !important;
     min-height: 0 !important;
-    width: 210px !important;
+    width: 220px !important;
     resize: none;
 }
 #xfy-panel.xfy-minimized .xfy-panel-body {
@@ -216,7 +216,7 @@
     display: flex;
 }
 .xfy-textarea-wrap .xfy-textarea {
-    padding-right: 26px; /* 给右上角 × 留出空间，防止文字重叠 */
+    padding-right: 26px;
 }
 .xfy-clear-btn {
     position: absolute;
