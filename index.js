@@ -525,7 +525,7 @@ function initBallDragAndDock(ball, panel) {
     });
 }
 
-// 正文划词翻译气泡
+// 正文划词翻译气泡（兼容电脑端鼠标与手机端长按选词）
 function buildSelectionPopover() {
     const trigger = document.createElement("div");
     trigger.id = "xfy-trigger";
@@ -544,34 +544,57 @@ function buildSelectionPopover() {
     document.body.appendChild(popover);
 
     let selectedText = "";
+    let selectionTimer = null;
 
-    document.addEventListener("mouseup", (e) => {
+    // 统一检测选区函数
+    function checkSelection() {
         const settings = getSettings();
         if (!settings.enable_selection) return;
-        if (trigger.contains(e.target) || popover.contains(e.target)) return;
 
-        setTimeout(() => {
-            const selection = window.getSelection();
-            const text = selection.toString().trim();
-            const chatContainer = document.getElementById("chat");
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
+            trigger.style.display = "none";
+            return;
+        }
 
-            if (text && chatContainer && chatContainer.contains(selection.anchorNode)) {
-                selectedText = text;
-                const range = selection.getRangeAt(0);
-                const rect = range.getBoundingClientRect();
-                trigger.style.left = `${Math.max(10, rect.right + window.scrollX - 24)}px`;
-                trigger.style.top = `${Math.max(10, rect.top + window.scrollY - 34)}px`;
-                trigger.style.display = "block";
-                popover.style.display = "none";
-            } else {
-                trigger.style.display = "none";
-                popover.style.display = "none";
-            }
-        }, 15);
+        const text = selection.toString().trim();
+        const chatContainer = document.getElementById("chat");
+
+        // 确保选中的文字在聊天正文区域内
+        if (text && chatContainer && chatContainer.contains(selection.anchorNode)) {
+            selectedText = text;
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+
+            // 放在选中文字的右下方，避开手机系统自带的顶部“复制/全选”菜单
+            const left = Math.max(10, Math.min(rect.right + window.scrollX - 28, window.innerWidth - 70));
+            const top = rect.bottom + window.scrollY + 8;
+
+            trigger.style.left = `${left}px`;
+            trigger.style.top = `${top}px`;
+            trigger.style.display = "block";
+        } else {
+            trigger.style.display = "none";
+        }
+    }
+
+    // 1. 监听选区变化（核心：完美支持手机长按选词与拖动选区滑块）
+    document.addEventListener("selectionchange", () => {
+        clearTimeout(selectionTimer);
+        selectionTimer = setTimeout(checkSelection, 200);
     });
 
-    trigger.addEventListener("click", async (e) => {
+    // 2. 点击页面空白处时关闭翻译气泡
+    document.addEventListener("pointerdown", (e) => {
+        if (trigger.contains(e.target) || popover.contains(e.target)) return;
+        popover.style.display = "none";
+    });
+
+    // 3. 点击“翻译”胶囊按钮（使用 pointerup 兼顾手机秒点与电脑点击）
+    trigger.addEventListener("pointerup", async (e) => {
+        e.preventDefault();
         e.stopPropagation();
+
         const rect = trigger.getBoundingClientRect();
         trigger.style.display = "none";
 
@@ -581,7 +604,7 @@ function buildSelectionPopover() {
 
         const left = Math.max(10, Math.min(rect.left + window.scrollX - 100, window.innerWidth - 285));
         popover.style.left = `${left}px`;
-        popover.style.top = `${rect.bottom + window.scrollY + 8}px`;
+        popover.style.top = `${rect.bottom + window.scrollY + 6}px`;
 
         try {
             const res = await translateText(selectedText, "auto", "zh-CN", "");
@@ -598,7 +621,6 @@ function buildSelectionPopover() {
         notify("success", "已复制译文");
     });
 }
-
 // 初始化设置界面与预设管理
 async function initSettingsUI() {
     const settingsHtml = await $.get(`scripts/extensions/third-party/${MODULE_NAME}/settings.html`);
