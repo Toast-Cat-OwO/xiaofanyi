@@ -18,6 +18,18 @@
 
             <hr class="sysHR" />
 
+            <!-- 多配置方案管理 -->
+            <div class="st-trans-setting-item">
+                <div class="st-trans-label-row">
+                    <label for="st_trans_profile_select">配置方案 (Profiles)</label>
+                    <div>
+                        <span id="st_trans_add_profile" class="st-trans-link-btn" style="margin-right: 10px;">新建</span>
+                        <span id="st_trans_del_profile" class="st-trans-link-btn" style="color: #c94a4a;">删除</span>
+                    </div>
+                </div>
+                <select id="st_trans_profile_select" class="text_pole"></select>
+            </div>
+
             <div class="st-trans-setting-item">
                 <label for="st_trans_engine">翻译引擎</label>
                 <select id="st_trans_engine" class="text_pole">
@@ -36,14 +48,18 @@
                 <hr class="sysHR" />
                 <div class="st-trans-setting-item">
                     <label for="st_trans_api_url">API Endpoint (接口地址)</label>
-                    <input type="text" id="st_trans_api_url" class="text_pole" placeholder="https://api.openai.com/v1/chat/completions" />
+                    <input type="text" id="st_trans_api_url" class="text_pole" placeholder="https://api.openai.com/v1" />
                 </div>
                 <div class="st-trans-setting-item">
                     <label for="st_trans_api_key">API Key</label>
                     <input type="password" id="st_trans_api_key" class="text_pole" placeholder="sk-..." />
                 </div>
                 <div class="st-trans-setting-item">
-                    <label for="st_trans_model">模型名称 (Model)</label>
+                    <div class="st-trans-label-row">
+                        <label for="st_trans_model">模型名称 (Model)</label>
+                        <span id="st_trans_fetch_models" class="st-trans-link-btn">获取模型列表</span>
+                    </div>
+                    <select id="st_trans_model_select" class="text_pole" style="display:none; margin-bottom: 6px;"></select>
                     <input type="text" id="st_trans_model" class="text_pole" placeholder="gpt-4o-mini 或 deepseek-chat" />
                 </div>
                 <div class="st-trans-setting-item">
@@ -52,7 +68,7 @@
                         <span id="st_trans_reset_prompt" class="st-trans-link-btn">恢复默认</span>
                     </div>
                     <textarea id="st_trans_prompt" class="text_pole" rows="5"></textarea>
-                    <small class="st-trans-hint">可用变量：{{source_lang}} (源语言), {{target_lang}} (目标语言), {{tone}} (所选语气要求)</small>
+                    <small class="st-trans-hint">可用变量：{{source_lang}}, {{target_lang}}, {{tone}}</small>
                 </div>
             </div>
         </div>
