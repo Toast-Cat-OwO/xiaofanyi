@@ -8,6 +8,24 @@ Translate the user's text from {{source_lang}} to {{target_lang}}.
 Additional requirement: {{requirement}}
 Output ONLY the translated result without quotes, explanations, or extra notes.`;
 
+const LANG_NAMES = {
+    "auto": "Auto Detect",
+    "zh-CN": "Simplified Chinese (简体中文)",
+    "zh-TW": "Traditional Chinese (繁體中文)",
+    "ko": "Korean (韩语)",
+    "ja": "Japanese (日语)",
+    "en": "English (英语)",
+    "ru": "Russian (俄语)",
+    "fr": "French (法语)",
+    "de": "German (德语)",
+    "es": "Spanish (西班牙语)",
+    "it": "Italian (意大利语)",
+    "pt": "Portuguese (葡萄牙语)",
+    "th": "Thai (泰语)",
+    "vi": "Vietnamese (越南语)",
+    "ar": "Arabic (阿拉伯语)"
+};
+
 const DEFAULT_PRESET_ID = "default_preset";
 
 const DEFAULT_SETTINGS = {
@@ -121,9 +139,11 @@ async function translateText(text, sourceLang, targetLang, requirement = "") {
 
         const { chatUrl } = resolveEndpoints(preset.api_url);
         const reqText = requirement.trim() ? requirement.trim() : "Natural and accurate translation";
+        const srcName = LANG_NAMES[sourceLang] || sourceLang;
+        const tgtName = LANG_NAMES[targetLang] || targetLang;
         const sysPrompt = (settings.prompt || DEFAULT_PROMPT)
-            .replace(/\{\{source_lang\}\}/g, sourceLang)
-            .replace(/\{\{target_lang\}\}/g, targetLang)
+            .replace(/\{\{source_lang\}\}/g, srcName)
+            .replace(/\{\{target_lang\}\}/g, tgtName)
             .replace(/\{\{requirement\}\}/g, reqText);
 
         const response = await fetch(chatUrl, {
@@ -232,18 +252,38 @@ function buildFloatingUI() {
         <div class="xfy-panel-body">
             <div class="xfy-controls-row">
                 <select class="xfy-select" id="xfy-source-lang">
-                    <option value="zh-CN">中文</option>
+                    <option value="auto">自动检测 (Auto)</option>
+                    <option value="zh-CN">简体中文</option>
+                    <option value="zh-TW">繁體中文</option>
                     <option value="ko">한국어 (韩语)</option>
                     <option value="ja">日本語 (日语)</option>
                     <option value="en">English (英语)</option>
-                    <option value="auto">Auto (自动)</option>
+                    <option value="ru">Русский (俄语)</option>
+                    <option value="fr">Français (法语)</option>
+                    <option value="de">Deutsch (德语)</option>
+                    <option value="es">Español (西班牙语)</option>
+                    <option value="it">Italiano (意大利语)</option>
+                    <option value="pt">Português (葡萄牙语)</option>
+                    <option value="th">ไทย (泰语)</option>
+                    <option value="vi">Tiếng Việt (越南语)</option>
+                    <option value="ar">العربية (阿拉伯语)</option>
                 </select>
                 <button class="xfy-swap-btn" id="xfy-swap-lang">⇄</button>
                 <select class="xfy-select" id="xfy-target-lang">
                     <option value="ko">한국어 (韩语)</option>
                     <option value="ja">日本語 (日语)</option>
                     <option value="en">English (英语)</option>
-                    <option value="zh-CN">中文</option>
+                    <option value="ru">Русский (俄语)</option>
+                    <option value="fr">Français (法语)</option>
+                    <option value="de">Deutsch (德语)</option>
+                    <option value="es">Español (西班牙语)</option>
+                    <option value="it">Italiano (意大利语)</option>
+                    <option value="pt">Português (葡萄牙语)</option>
+                    <option value="th">ไทย (泰语)</option>
+                    <option value="vi">Tiếng Việt (越南语)</option>
+                    <option value="ar">العربية (阿拉伯语)</option>
+                    <option value="zh-CN">简体中文</option>
+                    <option value="zh-TW">繁體中文</option>
                 </select>
             </div>
             <div class="xfy-controls-row" id="xfy-req-row" style="display: none;">
