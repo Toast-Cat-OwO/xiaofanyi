@@ -12,6 +12,7 @@ const LANG_NAMES = {
     "auto": "Auto Detect",
     "zh-CN": "Simplified Chinese (简体中文)",
     "zh-TW": "Traditional Chinese (繁體中文)",
+    "yue": "Colloquial Cantonese (地道粤语口语/香港广东话，请使用地道粤语词汇如係、唔、喺、咩、嘅等)",
     "ko": "Korean (韩语)",
     "ja": "Japanese (日语)",
     "en": "English (英语)",
@@ -126,6 +127,7 @@ async function bingDirectTranslate(text, sourceLang, targetLang) {
         if (l === "auto") return isSrc ? "" : "zh-Hans";
         if (l === "zh-CN") return "zh-Hans";
         if (l === "zh-TW") return "zh-Hant";
+        if (l === "yue") return "yue"; // 微软必应原生支持粤语代码 yue
         return l;
     };
 
@@ -156,8 +158,9 @@ async function bingDirectTranslate(text, sourceLang, targetLang) {
     }
 
     // 备用直连通道 (MyMemory 多语种直连)
-    const mmSource = sourceLang === "auto" ? "autodetect" : sourceLang;
-    const mmUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent(mmSource)}|${encodeURIComponent(targetLang)}`;
+    const mmSource = sourceLang === "auto" ? "autodetect" : (sourceLang === "yue" ? "zh-HK" : sourceLang);
+    const mmTarget = targetLang === "yue" ? "zh-HK" : targetLang;
+    const mmUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent(mmSource)}|${encodeURIComponent(mmTarget)}`;
     const mmResp = await fetch(mmUrl);
     if (!mmResp.ok) {
         throw new Error(`翻译请求失败 (${mmResp.status})`);
@@ -309,6 +312,7 @@ function buildFloatingUI() {
                     <option value="auto">自动检测 (Auto)</option>
                     <option value="zh-CN">简体中文</option>
                     <option value="zh-TW">繁體中文</option>
+                    <option value="yue">粵語 (广东话)</option>
                     <option value="ko">한국어 (韩语)</option>
                     <option value="ja">日本語 (日语)</option>
                     <option value="en">English (英语)</option>
@@ -327,6 +331,7 @@ function buildFloatingUI() {
                     <option value="ko">한국어 (韩语)</option>
                     <option value="ja">日本語 (日语)</option>
                     <option value="en">English (英语)</option>
+                    <option value="yue">粵語 (广东话)</option>
                     <option value="ru">Русский (俄语)</option>
                     <option value="fr">Français (法语)</option>
                     <option value="de">Deutsch (德语)</option>
@@ -371,12 +376,10 @@ function buildFloatingUI() {
     tgtSelect.value = settings.target_lang;
     reqInput.value = settings.requirement || "";
 
-    // 阻止顶栏下拉框和按钮触发面板拖拽
     quickEngine.addEventListener("pointerdown", e => e.stopPropagation());
     document.getElementById("xfy-panel-min").addEventListener("pointerdown", e => e.stopPropagation());
     document.getElementById("xfy-panel-close").addEventListener("pointerdown", e => e.stopPropagation());
 
-    // 面板顶部快速切换引擎或预设
     quickEngine.addEventListener("change", () => {
         const val = quickEngine.value;
         if (val === "bing" || val === "google") {
@@ -406,7 +409,6 @@ function buildFloatingUI() {
         saveSettingsDebounced();
     });
 
-    // 折叠与关闭
     const minBtn = document.getElementById("xfy-panel-min");
     minBtn.addEventListener("click", () => {
         panel.classList.toggle("xfy-minimized");
@@ -417,7 +419,6 @@ function buildFloatingUI() {
         panel.style.display = "none";
     });
 
-    // 翻译与清空按钮逻辑
     const btnTranslate = document.getElementById("xfy-do-translate");
     const inputArea = document.getElementById("xfy-input-text");
     const outputArea = document.getElementById("xfy-output-text");
@@ -447,7 +448,6 @@ function buildFloatingUI() {
         }
     });
 
-    // 追加动作
     document.getElementById("xfy-insert-single").addEventListener("click", () => {
         const target = outputArea.value.trim();
         if (!target) return notify("warning", "译文为空，请先翻译");
