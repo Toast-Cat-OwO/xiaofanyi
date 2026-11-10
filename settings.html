@@ -21,8 +21,9 @@
             <div class="xfy-setting-item">
                 <label for="xfy_engine">当前默认翻译引擎</label>
                 <select id="xfy_engine" class="text_pole">
-                    <option value="google">免费接口 (Google 翻译)</option>
-                    <option value="custom_ai">自定义 AI 模型 (OpenAI 兼容)</option>
+                    <option value="bing">微软必应</option>
+                    <option value="google">Google 翻译</option>
+                    <option value="custom_ai">自定义 AI 模型</option>
                 </select>
             </div>
 
@@ -35,7 +36,6 @@
             <div id="xfy_ai_config" style="display: none;">
                 <hr class="sysHR" />
                 
-                <!-- 预设管理栏 -->
                 <div class="xfy-setting-item">
                     <label>API 预设管理</label>
                     <div class="xfy-row">
@@ -51,7 +51,7 @@
                 </div>
 
                 <div class="xfy-setting-item">
-                    <label for="xfy_api_url">API 地址 (支持填基础路径或完整路径)</label>
+                    <label for="xfy_api_url">API 地址</label>
                     <input type="text" id="xfy_api_url" class="text_pole" placeholder="https://api.deepseek.com/v1" />
                 </div>
 
@@ -63,11 +63,11 @@
                 <div class="xfy-setting-item">
                     <div class="xfy-label-row">
                         <label for="xfy_model_input">模型名称 (Model)</label>
-                        <span id="xfy_toggle_model_input" class="xfy-link-btn">切换手动输入/列表选择</span>
+                        <span id="xfy_toggle_model_input" class="xfy-link-btn">切换手动/列表</span>
                     </div>
                     <div class="xfy-row">
                         <select id="xfy_model_select" class="text_pole xfy-flex-1" style="display: none;"></select>
-                        <input type="text" id="xfy_model_input" class="text_pole xfy-flex-1" placeholder="点击右侧拉取或直接输入模型名" />
+                        <input type="text" id="xfy_model_input" class="text_pole xfy-flex-1" placeholder="点击右侧获取或直接输入" />
                         <button id="xfy_fetch_models" class="menu_button xfy-btn-sm">获取模型</button>
                     </div>
                 </div>
@@ -84,7 +84,7 @@
                         <span id="xfy_reset_prompt" class="xfy-link-btn">恢复默认</span>
                     </div>
                     <textarea id="xfy_prompt" class="text_pole" rows="5"></textarea>
-                    <small class="xfy-hint">可用变量：{{source_lang}} (源语言), {{target_lang}} (目标语言), {{requirement}} (面板中填写的额外翻译要求)</small>
+                    <small class="xfy-hint">可用变量：{{source_lang}} (源语言), {{target_lang}} (目标语言), {{requirement}} (面板中填写的额外要求)</small>
                 </div>
             </div>
         </div>
