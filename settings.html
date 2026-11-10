@@ -1,74 +1,90 @@
-<div class="st-trans-settings">
+<div class="xfy-settings">
     <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
             <b>小翻译设置</b>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
-            <div class="st-trans-setting-group">
+            <div class="xfy-setting-group">
                 <label class="checkbox_label">
-                    <input type="checkbox" id="st_trans_enable_ball" />
+                    <input type="checkbox" id="xfy_enable_ball" />
                     <span>启用侧边悬浮球</span>
                 </label>
                 <label class="checkbox_label">
-                    <input type="checkbox" id="st_trans_enable_selection" />
+                    <input type="checkbox" id="xfy_enable_selection" />
                     <span>启用正文划词翻译气泡</span>
                 </label>
             </div>
 
             <hr class="sysHR" />
 
-            <!-- 多配置方案管理 -->
-            <div class="st-trans-setting-item">
-                <div class="st-trans-label-row">
-                    <label for="st_trans_profile_select">配置方案 (Profiles)</label>
-                    <div>
-                        <span id="st_trans_add_profile" class="st-trans-link-btn" style="margin-right: 10px;">新建</span>
-                        <span id="st_trans_del_profile" class="st-trans-link-btn" style="color: #c94a4a;">删除</span>
-                    </div>
-                </div>
-                <select id="st_trans_profile_select" class="text_pole"></select>
-            </div>
-
-            <div class="st-trans-setting-item">
-                <label for="st_trans_engine">翻译引擎</label>
-                <select id="st_trans_engine" class="text_pole">
-                    <option value="google">免费接口 (Google Web)</option>
+            <div class="xfy-setting-item">
+                <label for="xfy_engine">当前默认翻译引擎</label>
+                <select id="xfy_engine" class="text_pole">
+                    <option value="google">免费接口 (Google 翻译)</option>
                     <option value="custom_ai">自定义 AI 模型 (OpenAI 兼容)</option>
                 </select>
             </div>
 
-            <div class="st-trans-setting-item">
-                <label for="st_trans_bilingual_format">双语追加格式</label>
-                <input type="text" id="st_trans_bilingual_format" class="text_pole" placeholder="{{target}}（{{source}}）" />
-                <small class="st-trans-hint">可用变量：{{target}} 代表译文，{{source}} 代表原文</small>
+            <div class="xfy-setting-item">
+                <label for="xfy_bilingual_format">双语追加格式</label>
+                <input type="text" id="xfy_bilingual_format" class="text_pole" placeholder="{{target}}（{{source}}）" />
+                <small class="xfy-hint">变量：{{target}} 代表译文，{{source}} 代表原文</small>
             </div>
 
-            <div id="st_trans_ai_config" style="display: none;">
+            <div id="xfy_ai_config" style="display: none;">
                 <hr class="sysHR" />
-                <div class="st-trans-setting-item">
-                    <label for="st_trans_api_url">API Endpoint (接口地址)</label>
-                    <input type="text" id="st_trans_api_url" class="text_pole" placeholder="https://api.openai.com/v1" />
-                </div>
-                <div class="st-trans-setting-item">
-                    <label for="st_trans_api_key">API Key</label>
-                    <input type="password" id="st_trans_api_key" class="text_pole" placeholder="sk-..." />
-                </div>
-                <div class="st-trans-setting-item">
-                    <div class="st-trans-label-row">
-                        <label for="st_trans_model">模型名称 (Model)</label>
-                        <span id="st_trans_fetch_models" class="st-trans-link-btn">获取模型列表</span>
+                
+                <!-- 预设管理栏 -->
+                <div class="xfy-setting-item">
+                    <label>API 预设管理</label>
+                    <div class="xfy-row">
+                        <select id="xfy_preset_select" class="text_pole xfy-flex-1"></select>
+                        <button id="xfy_preset_new" class="menu_button xfy-btn-sm" title="新建预设">新建</button>
+                        <button id="xfy_preset_delete" class="menu_button xfy-btn-sm" title="删除当前预设">删除</button>
                     </div>
-                    <select id="st_trans_model_select" class="text_pole" style="display:none; margin-bottom: 6px;"></select>
-                    <input type="text" id="st_trans_model" class="text_pole" placeholder="gpt-4o-mini 或 deepseek-chat" />
                 </div>
-                <div class="st-trans-setting-item">
-                    <div class="st-trans-label-row">
-                        <label for="st_trans_prompt">自定义翻译 Prompt</label>
-                        <span id="st_trans_reset_prompt" class="st-trans-link-btn">恢复默认</span>
+
+                <div class="xfy-setting-item">
+                    <label for="xfy_preset_name">预设名称</label>
+                    <input type="text" id="xfy_preset_name" class="text_pole" placeholder="例如：DeepSeek / Gemini" />
+                </div>
+
+                <div class="xfy-setting-item">
+                    <label for="xfy_api_url">API 地址 (支持填基础路径或完整路径)</label>
+                    <input type="text" id="xfy_api_url" class="text_pole" placeholder="https://api.deepseek.com/v1" />
+                </div>
+
+                <div class="xfy-setting-item">
+                    <label for="xfy_api_key">API Key</label>
+                    <input type="password" id="xfy_api_key" class="text_pole" placeholder="sk-..." />
+                </div>
+
+                <div class="xfy-setting-item">
+                    <div class="xfy-label-row">
+                        <label for="xfy_model_input">模型名称 (Model)</label>
+                        <span id="xfy_toggle_model_input" class="xfy-link-btn">切换手动输入/列表选择</span>
                     </div>
-                    <textarea id="st_trans_prompt" class="text_pole" rows="5"></textarea>
-                    <small class="st-trans-hint">可用变量：{{source_lang}}, {{target_lang}}, {{tone}}</small>
+                    <div class="xfy-row">
+                        <select id="xfy_model_select" class="text_pole xfy-flex-1" style="display: none;"></select>
+                        <input type="text" id="xfy_model_input" class="text_pole xfy-flex-1" placeholder="点击右侧拉取或直接输入模型名" />
+                        <button id="xfy_fetch_models" class="menu_button xfy-btn-sm">获取模型</button>
+                    </div>
+                </div>
+
+                <div class="xfy-setting-item">
+                    <button id="xfy_save_preset" class="menu_button" style="width: 100%; margin-top: 4px;">保存当前预设配置</button>
+                </div>
+
+                <hr class="sysHR" />
+
+                <div class="xfy-setting-item">
+                    <div class="xfy-label-row">
+                        <label for="xfy_prompt">自定义翻译 Prompt</label>
+                        <span id="xfy_reset_prompt" class="xfy-link-btn">恢复默认</span>
+                    </div>
+                    <textarea id="xfy_prompt" class="text_pole" rows="5"></textarea>
+                    <small class="xfy-hint">可用变量：{{source_lang}} (源语言), {{target_lang}} (目标语言), {{requirement}} (面板中填写的额外翻译要求)</small>
                 </div>
             </div>
         </div>
