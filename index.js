@@ -52,6 +52,12 @@ const DEFAULT_SETTINGS = {
     panel_pos: { top: 120, left: Math.max(10, window.innerWidth - 350) }
 };
 
+// 微软必应 Token 内存缓存（拿一次可复用 9 分钟，彻底解决变慢与被限流问题）
+let msTokenCache = {
+    token: "",
+    expireAt: 0
+};
+
 function notify(type, message, title = "小翻译") {
     if (window.toastr && typeof window.toastr[type] === "function") {
         window.toastr[type](message, title);
@@ -121,43 +127,86 @@ async function fetchModelList(apiUrl, apiKey) {
     return list;
 }
 
-// 微软必应与国内多通道直连实现
+// 带缓存与超时的微软 Token 获取器（9分钟仅需获取1次）
+async function getMsEdgeToken(forceRefresh = false) {
+    const now = Date.now();
+    if (!forceRefresh && msTokenCache.token && now < msTokenCache.expireAt) {
+        return msTokenCache.token;
+    }
+
+    const authTarget = "https://edge.microsoft.com/translate/auth";
+    const endpoints = [
+        `https://corsproxy.io/?${encodeURIComponent(authTarget)}`,
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(authTarget)}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(authTarget)}`
+    ];
+
+    for (const url of endpoints) {
+        try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 3500);
+            const resp = await fetch(url, { signal: controller.signal });
+            clearTimeout(timer);
+
+            if (resp.ok) {
+                const token = (await resp.text()).trim();
+                // 校验返回的是否是合法的 JWT Token (以 eyJ 开头)
+                if (token && token.startsWith("eyJ")) {
+                    msTokenCache.token = token;
+                    msTokenCache.expireAt = now + 9 * 60 * 1000; // 缓存 9 分钟
+                    return token;
+                }
+            }
+        } catch (e) {
+            // 当前节点超时则立即切换下一个节点
+        }
+    }
+    throw new Error("获取微软授权失败");
+}
+
+// 微软必应高速直连实现
 async function bingDirectTranslate(text, sourceLang, targetLang) {
     const mapLang = (l, isSrc) => {
         if (l === "auto") return isSrc ? "" : "zh-Hans";
         if (l === "zh-CN") return "zh-Hans";
         if (l === "zh-TW") return "zh-Hant";
-        if (l === "yue") return "yue"; // 微软必应原生支持粤语代码 yue
+        if (l === "yue") return "yue";
         return l;
     };
 
-    // 优先使用微软 Edge 神经网络接口
-    try {
-        const tokenResp = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://edge.microsoft.com/translate/auth"));
-        if (tokenResp.ok) {
-            const token = await tokenResp.text();
-            const from = mapLang(sourceLang, true);
-            const to = mapLang(targetLang, false);
-            const msUrl = `https://api-edge.cognitive.microsofttranslator.com/translate?from=${from}&to=${to}&api-version=3.0`;
+    const from = mapLang(sourceLang, true);
+    const to = mapLang(targetLang, false);
+    const msUrl = `https://api-edge.cognitive.microsofttranslator.com/translate?from=${from}&to=${to}&api-version=3.0`;
+
+    // 尝试使用缓存 Token 直接请求微软官方高速接口
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const token = await getMsEdgeToken(attempt > 0);
             const transResp = await fetch(msUrl, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token.trim()}`
+                    "Authorization": `Bearer ${token}`
                 },
                 body: JSON.stringify([{ Text: text }])
             });
+
+            if (transResp.status === 401 && attempt === 0) {
+                // Token 过期，强制刷新重试一次
+                continue;
+            }
+
             if (transResp.ok) {
                 const data = await transResp.json();
                 const res = data?.[0]?.translations?.[0]?.text;
                 if (res) return res;
             }
+        } catch (e) {
+            // 继续尝试
         }
-    } catch (e) {
-        // 自动切换备用直连通道
     }
 
-    // 备用直连通道 (MyMemory 多语种直连)
+    // 极端网络情况下的最终兜底通道
     const mmSource = sourceLang === "auto" ? "autodetect" : (sourceLang === "yue" ? "zh-HK" : sourceLang);
     const mmTarget = targetLang === "yue" ? "zh-HK" : targetLang;
     const mmUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent(mmSource)}|${encodeURIComponent(mmTarget)}`;
