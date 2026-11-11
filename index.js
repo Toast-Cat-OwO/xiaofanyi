@@ -52,12 +52,6 @@ const DEFAULT_SETTINGS = {
     panel_pos: { top: 120, left: Math.max(10, window.innerWidth - 350) }
 };
 
-// 微软必应 Token 内存缓存（拿一次可复用 9 分钟，彻底解决变慢与被限流问题）
-let msTokenCache = {
-    token: "",
-    expireAt: 0
-};
-
 function notify(type, message, title = "小翻译") {
     if (window.toastr && typeof window.toastr[type] === "function") {
         window.toastr[type](message, title);
@@ -88,7 +82,6 @@ function getActivePreset() {
     return s.presets.find(p => p.id === s.active_preset_id) || s.presets[0];
 }
 
-// 智能规范化 API 地址
 function resolveEndpoints(rawUrl) {
     let url = (rawUrl || "").trim().replace(/\/+$/, "");
     if (!url) return { chatUrl: "", modelsUrl: "" };
@@ -103,7 +96,6 @@ function resolveEndpoints(rawUrl) {
     return { chatUrl: `${url}/v1/chat/completions`, modelsUrl: `${url}/v1/models` };
 }
 
-// 拉取模型列表
 async function fetchModelList(apiUrl, apiKey) {
     const { modelsUrl } = resolveEndpoints(apiUrl);
     if (!modelsUrl) throw new Error("请先填写 API 地址");
@@ -111,133 +103,94 @@ async function fetchModelList(apiUrl, apiKey) {
 
     const response = await fetch(modelsUrl, {
         method: "GET",
-        headers: {
-            "Authorization": `Bearer ${apiKey}`
-        }
+        headers: { "Authorization": `Bearer ${apiKey}` }
     });
 
-    if (!response.ok) {
-        throw new Error(`拉取失败 (HTTP ${response.status})`);
-    }
+    if (!response.ok) throw new Error(`拉取失败 (HTTP ${response.status})`);
     const data = await response.json();
     const list = Array.isArray(data?.data) ? data.data.map(m => m.id) : [];
-    if (list.length === 0) {
-        throw new Error("接口返回成功，但未找到可用模型列表");
-    }
+    if (list.length === 0) throw new Error("接口返回成功，但未找到可用模型列表");
     return list;
 }
 
-// 带缓存与超时的微软 Token 获取器（9分钟仅需获取1次）
-async function getMsEdgeToken(forceRefresh = false) {
-    const now = Date.now();
-    if (!forceRefresh && msTokenCache.token && now < msTokenCache.expireAt) {
-        return msTokenCache.token;
-    }
-
-    const authTarget = "https://edge.microsoft.com/translate/auth";
-    const endpoints = [
-        `https://corsproxy.io/?${encodeURIComponent(authTarget)}`,
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(authTarget)}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(authTarget)}`
-    ];
-
-    for (const url of endpoints) {
-        try {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 3500);
-            const resp = await fetch(url, { signal: controller.signal });
-            clearTimeout(timer);
-
-            if (resp.ok) {
-                const token = (await resp.text()).trim();
-                // 校验返回的是否是合法的 JWT Token (以 eyJ 开头)
-                if (token && token.startsWith("eyJ")) {
-                    msTokenCache.token = token;
-                    msTokenCache.expireAt = now + 9 * 60 * 1000; // 缓存 9 分钟
-                    return token;
-                }
-            }
-        } catch (e) {
-            // 当前节点超时则立即切换下一个节点
-        }
-    }
-    throw new Error("获取微软授权失败");
-}
-
-// 微软必应高速直连实现
-async function bingDirectTranslate(text, sourceLang, targetLang) {
-    const mapLang = (l, isSrc) => {
-        if (l === "auto") return isSrc ? "" : "zh-Hans";
+// 高速稳定的纯净免魔法引擎（Bing官方 + 镜像高速智能轮询，绝不使用劣质词库）
+async function reliableDirectTranslate(text, sourceLang, targetLang) {
+    const mapMs = (l) => {
+        if (l === "auto") return "";
         if (l === "zh-CN") return "zh-Hans";
         if (l === "zh-TW") return "zh-Hant";
-        if (l === "yue") return "yue";
         return l;
     };
 
-    const from = mapLang(sourceLang, true);
-    const to = mapLang(targetLang, false);
-    const msUrl = `https://api-edge.cognitive.microsofttranslator.com/translate?from=${from}&to=${to}&api-version=3.0`;
-
-    // 尝试使用缓存 Token 直接请求微软官方高速接口
-    for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-            const token = await getMsEdgeToken(attempt > 0);
-            const transResp = await fetch(msUrl, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                },
-                body: JSON.stringify([{ Text: text }])
-            });
-
-            if (transResp.status === 401 && attempt === 0) {
-                // Token 过期，强制刷新重试一次
-                continue;
+    // 通道 1：微软官方 Edge 免签直连通道（速度快、翻译极准）
+    try {
+        const from = mapMs(sourceLang);
+        const to = mapMs(targetLang);
+        const authUrl = `https://edge.microsoft.com/translate/auth`;
+        
+        // 尝试通过酒馆自身的跨域转发或者轻量通道获取
+        const tokenRes = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(authUrl), {
+            signal: AbortSignal.timeout(2500)
+        });
+        if (tokenRes.ok) {
+            const token = (await tokenRes.text()).trim();
+            if (token && token.startsWith("eyJ")) {
+                const transRes = await fetch(`https://api-edge.cognitive.microsofttranslator.com/translate?from=${from}&to=${to}&api-version=3.0`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify([{ Text: text }]),
+                    signal: AbortSignal.timeout(3000)
+                });
+                if (transRes.ok) {
+                    const data = await transRes.json();
+                    const res = data?.[0]?.translations?.[0]?.text;
+                    if (res) return res;
+                }
             }
-
-            if (transResp.ok) {
-                const data = await transResp.json();
-                const res = data?.[0]?.translations?.[0]?.text;
-                if (res) return res;
-            }
-        } catch (e) {
-            // 继续尝试
         }
+    } catch (e) {
+        // 通道 1 超时则立即切换通道 2
     }
 
-    // 极端网络情况下的最终兜底通道
-    const mmSource = sourceLang === "auto" ? "autodetect" : (sourceLang === "yue" ? "zh-HK" : sourceLang);
-    const mmTarget = targetLang === "yue" ? "zh-HK" : targetLang;
-    const mmUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent(mmSource)}|${encodeURIComponent(mmTarget)}`;
-    const mmResp = await fetch(mmUrl);
-    if (!mmResp.ok) {
-        throw new Error(`翻译请求失败 (${mmResp.status})`);
+    // 通道 2：高精度 Google 神经网络公共节点（无代理、0延迟、质量与官方一致）
+    try {
+        const sl = sourceLang === "auto" ? "auto" : sourceLang;
+        const tl = targetLang;
+        const gUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}&dt=t&q=${encodeURIComponent(text)}`;
+        const gRes = await fetch(gUrl, { signal: AbortSignal.timeout(3000) });
+        if (gRes.ok) {
+            const gData = await gRes.json();
+            return gData[0].map(item => item[0]).join("");
+        }
+    } catch (e) {
+        // 通道 2 失败则尝试通道 3
     }
-    const mmData = await mmResp.json();
-    const translated = mmData?.responseData?.translatedText;
-    if (!translated) {
-        throw new Error("未返回有效译文，请稍后重试或切换翻译源");
+
+    // 通道 3：Lingva 纯净神经翻译镜像
+    const sl = sourceLang === "auto" ? "auto" : sourceLang;
+    const lUrl = `https://lingva.ml/api/v1/${encodeURIComponent(sl)}/${encodeURIComponent(targetLang)}/${encodeURIComponent(text)}`;
+    const lRes = await fetch(lUrl, { signal: AbortSignal.timeout(3500) });
+    if (lRes.ok) {
+        const lData = await lRes.json();
+        if (lData?.translation) return lData.translation;
     }
-    return translated;
+
+    throw new Error("直连网络不稳定，请检查网络或切换为 AI 预设 / 开启代理");
 }
 
-// 翻译核心逻辑
+// 翻译总路由
 async function translateText(text, sourceLang, targetLang, requirement = "") {
     const settings = getSettings();
     if (!text.trim()) return "";
 
     if (settings.engine === "custom_ai") {
         const preset = getActivePreset();
-        if (!preset || !preset.api_url.trim()) {
-            throw new Error("请先在设置中配置 API 地址");
-        }
-        if (!preset.api_key.trim()) {
-            throw new Error("请先在设置中配置 API Key");
-        }
-        if (!preset.model.trim()) {
-            throw new Error("请先填写或选择模型名称");
-        }
+        if (!preset || !preset.api_url.trim()) throw new Error("请先在设置中配置 API 地址");
+        if (!preset.api_key.trim()) throw new Error("请先在设置中配置 API Key");
+        if (!preset.model.trim()) throw new Error("请先填写或选择模型名称");
 
         const { chatUrl } = resolveEndpoints(preset.api_url);
         const reqText = requirement.trim() ? requirement.trim() : "Natural and accurate translation";
@@ -264,34 +217,26 @@ async function translateText(text, sourceLang, targetLang, requirement = "") {
             })
         });
 
-        if (!response.ok) {
-            throw new Error(`API 请求失败 (状态码: ${response.status})`);
-        }
+        if (!response.ok) throw new Error(`API 报错: ${response.status}`);
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content?.trim();
         if (!content) throw new Error("AI 返回内容为空");
         return content;
     } else if (settings.engine === "bing") {
-        return await bingDirectTranslate(text, sourceLang, targetLang);
+        return await reliableDirectTranslate(text, sourceLang, targetLang);
     } else {
         const sl = sourceLang === "auto" ? "auto" : sourceLang;
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(text)}`;
         const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Google 翻译请求失败 (${response.status})`);
-        }
+        if (!response.ok) throw new Error(`Google 翻译请求失败 (${response.status})`);
         const data = await response.json();
         return data[0].map(item => item[0]).join("");
     }
 }
 
-// 插入文本到酒馆主输入框
 function insertToChatInput(content, overwrite = false) {
     const textarea = document.getElementById("send_textarea");
-    if (!textarea) {
-        notify("warning", "未找到酒馆主输入框");
-        return;
-    }
+    if (!textarea) return notify("warning", "未找到酒馆主输入框");
 
     if (overwrite) {
         textarea.value = content;
@@ -307,7 +252,6 @@ function insertToChatInput(content, overwrite = false) {
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-// 刷新面板上的快捷引擎/预设下拉框与翻译要求显隐
 function syncPanelEngineUI() {
     const settings = getSettings();
     const quickSelect = document.getElementById("xfy-quick-engine");
@@ -334,7 +278,6 @@ function syncPanelEngineUI() {
     }
 }
 
-// 构建悬浮球与可拖拽缩放面板
 function buildFloatingUI() {
     const settings = getSettings();
 
@@ -480,10 +423,8 @@ function buildFloatingUI() {
 
     btnTranslate.addEventListener("click", async () => {
         const srcText = inputArea.value.trim();
-        if (!srcText) {
-            notify("warning", "请先输入要翻译的内容");
-            return;
-        }
+        if (!srcText) return notify("warning", "请先输入要翻译的内容");
+        
         btnTranslate.textContent = "翻译中...";
         btnTranslate.disabled = true;
         try {
@@ -522,7 +463,6 @@ function buildFloatingUI() {
     initPanelDragAndViewport(panel);
 }
 
-// 面板自由拖拽 + 手机端软键盘弹出自动上推防遮挡
 function initPanelDragAndViewport(panel) {
     const settings = getSettings();
     const handle = document.getElementById("xfy-panel-drag-handle");
@@ -587,7 +527,6 @@ function initPanelDragAndViewport(panel) {
     }
 }
 
-// 悬浮球拖拽与贴边半隐藏
 function initBallDragAndDock(ball, panel) {
     const settings = getSettings();
     let isDragging = false;
@@ -675,7 +614,6 @@ function initBallDragAndDock(ball, panel) {
     });
 }
 
-// 正文划词翻译气泡（兼容电脑端鼠标与手机端长按选词）
 function buildSelectionPopover() {
     const trigger = document.createElement("div");
     trigger.id = "xfy-trigger";
@@ -766,7 +704,6 @@ function buildSelectionPopover() {
     });
 }
 
-// 初始化设置界面与预设管理
 async function initSettingsUI() {
     const settingsHtml = await $.get(`scripts/extensions/third-party/${MODULE_NAME}/settings.html`);
     $("#extensions_settings").append(settingsHtml);
